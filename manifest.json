@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "avendor7.twitch",
+  "name": "Twitch Following",
+  "version": "0.1.0",
+  "author": "Avendor7",
+  "description": "Live Twitch follows, stream details, and go-live notifications",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "qml/Widget.qml" },
+  "barWidget": {
+    "displayName": "Twitch Following",
+    "description": "See followed channels that are live",
+    "category": "Social",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
