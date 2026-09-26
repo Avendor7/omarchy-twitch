@@ -50,14 +50,30 @@ Panel {
     return "Live " + (hours ? hours + "h " : "") + (elapsed % 60) + "m"
   }
 
+  function thumbnailSource(url) {
+    if (!opened || !url) return ""
+    return url + (url.indexOf("?") < 0 ? "?" : "&") + "t=" + String(snapshot.checked_at || 0)
+  }
+
   function overrideFor(login) {
     var overrides = configValue("notification_overrides", {})
-    if (overrides[login] === undefined) return configValue("notify_all", true)
     return overrides[login]
   }
 
+  function notificationLabel(login) {
+    var override = overrideFor(login)
+    if (override !== undefined) return override ? "Local on" : "Local off"
+    if (configValue("match_twitch_notifications", false)) {
+      var preferences = snapshot.twitch_notifications || {}
+      if (preferences[login] === undefined) return "Twitch"
+      return preferences[login] ? "Twitch on" : "Twitch off"
+    }
+    return configValue("notify_all", true) ? "Default on" : "Default off"
+  }
+
   function toggleOverride(login) {
-    runAction(["notify-channel", login, overrideFor(login) ? "off" : "on"])
+    var override = overrideFor(login)
+    runAction(["notify-channel", login, override === undefined ? "on" : override ? "off" : "default"])
   }
 
   Process {
@@ -202,42 +218,66 @@ Panel {
               delegate: Rectangle {
                 required property var modelData
                 width: panelColumn.width
-                height: streamInfo.implicitHeight + Style.space(18)
+                height: Math.max(streamInfo.implicitHeight, previewFrame.height) + Style.space(18)
                 color: streamMouse.containsMouse ? Color.popups.background : "transparent"
                 radius: Style.cornerRadius
 
-                Column {
-                  id: streamInfo
+                Row {
                   anchors.left: parent.left
                   anchors.right: parent.right
                   anchors.verticalCenter: parent.verticalCenter
                   anchors.leftMargin: Style.space(8)
                   anchors.rightMargin: Style.space(8)
-                  spacing: Style.space(3)
-                  Text {
-                    width: parent.width
-                    text: "●  " + modelData.display_name + "  ·  " + Number(modelData.viewers).toLocaleString() + " viewers"
-                    textFormat: Text.PlainText
-                    elide: Text.ElideRight
-                    color: Color.accent
-                    font.bold: true
-                    font.pixelSize: Style.font.body
+                  spacing: Style.space(10)
+
+                  Rectangle {
+                    id: previewFrame
+                    width: Style.space(128)
+                    height: Style.space(72)
+                    radius: Style.cornerRadius
+                    color: Color.background
+                    clip: true
+
+                    Image {
+                      anchors.fill: parent
+                      source: root.thumbnailSource(modelData.thumbnail_url || "")
+                      sourceSize.width: 256
+                      sourceSize.height: 144
+                      fillMode: Image.PreserveAspectCrop
+                      asynchronous: true
+                      cache: false
+                    }
                   }
-                  Text {
-                    width: parent.width
-                    text: modelData.title || "Untitled stream"
-                    textFormat: Text.PlainText
-                    elide: Text.ElideRight
-                    color: Color.foreground
-                    font.pixelSize: Style.font.body
-                  }
-                  Text {
-                    width: parent.width
-                    text: (modelData.game || "No category") + "  ·  " + root.uptime(modelData.started_at)
-                    textFormat: Text.PlainText
-                    elide: Text.ElideRight
-                    color: Color.muted
-                    font.pixelSize: Style.font.caption
+
+                  Column {
+                    id: streamInfo
+                    width: parent.width - previewFrame.width - Style.space(10)
+                    spacing: Style.space(3)
+                    Text {
+                      width: parent.width
+                      text: "●  " + modelData.display_name + "  ·  " + Number(modelData.viewers).toLocaleString() + " viewers"
+                      textFormat: Text.PlainText
+                      elide: Text.ElideRight
+                      color: Color.accent
+                      font.bold: true
+                      font.pixelSize: Style.font.body
+                    }
+                    Text {
+                      width: parent.width
+                      text: modelData.title || "Untitled stream"
+                      textFormat: Text.PlainText
+                      elide: Text.ElideRight
+                      color: Color.foreground
+                      font.pixelSize: Style.font.body
+                    }
+                    Text {
+                      width: parent.width
+                      text: (modelData.game || "No category") + "  ·  " + root.uptime(modelData.started_at)
+                      textFormat: Text.PlainText
+                      elide: Text.ElideRight
+                      color: Color.muted
+                      font.pixelSize: Style.font.caption
+                    }
                   }
                 }
                 MouseArea {
@@ -299,9 +339,21 @@ Panel {
                 onClicked: root.runAction(["set", "notifications", root.configValue("notifications", true) ? "false" : "true"])
               }
               Button {
+                visible: !root.configValue("match_twitch_notifications", false)
                 text: root.configValue("notify_all", true) ? "All follows" : "Overrides only"
                 onClicked: root.runAction(["set", "notify_all", root.configValue("notify_all", true) ? "false" : "true"])
               }
+            }
+            Button {
+              text: root.configValue("match_twitch_notifications", false) ? "Match Twitch: on" : "Match Twitch: off"
+              onClicked: root.runAction(["set", "match_twitch_notifications", root.configValue("match_twitch_notifications", false) ? "false" : "true"])
+            }
+            Text {
+              width: parent.width
+              wrapMode: Text.Wrap
+              textFormat: Text.PlainText
+              color: Color.muted
+              text: "Match Twitch reads each live channel's notification switch with a browser or session token. Always and Personalized notify here; Off stays quiet. Local channel choices take priority."
             }
             Button {
               text: "Poll every " + root.configValue("poll_interval", 90) + "s"
@@ -386,7 +438,7 @@ Panel {
                 }
                 Button {
                   id: notifyButton
-                  text: root.overrideFor(modelData) ? "Notify" : "Muted"
+                  text: root.notificationLabel(modelData)
                   onClicked: root.toggleOverride(modelData)
                 }
               }

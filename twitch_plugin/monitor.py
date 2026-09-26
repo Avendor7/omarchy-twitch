@@ -47,10 +47,20 @@ def _snapshot(state, cfg, error="", stale=False):
         "checked_at": state.get("checked_at", 0),
         "source": state.get("source", ""),
         "warning": state.get("warning", ""),
+        "twitch_notifications": state.get("twitch_notifications", {}),
         "error": error,
         "stale": stale,
         "config": cfg,
     }
+
+
+def notification_enabled(login, cfg, twitch_notifications):
+    overrides = cfg.get("notification_overrides") or {}
+    if login in overrides:
+        return overrides[login]
+    if cfg.get("match_twitch_notifications"):
+        return twitch_notifications.get(login, False)
+    return cfg.get("notify_all", True)
 
 
 def poll(force=False):
@@ -67,12 +77,16 @@ def poll(force=False):
         mode = cfg["mode"]
         saved_follows = normalize_channels(follows())
         token_source = ""
+        warning = ""
+        twitch_notifications = {}
         try:
             if mode == "helix":
                 provider = TwitchHelixProvider(cfg.get("client_id", ""), stored_token())
                 channels = normalize_channels(provider.get_followed_channels())
                 streams = provider.get_live_streams()
                 source = "Helix OAuth"
+                if cfg.get("match_twitch_notifications"):
+                    warning = "Twitch notification matching needs a browser session or web session token; unknown channels will stay quiet."
             else:
                 session = None
                 if mode == "auto":
@@ -103,6 +117,16 @@ def poll(force=False):
                     source = "saved channels" if channels else "none"
                     warning = ""
                 streams = provider.get_live_streams(channels)
+                if cfg.get("match_twitch_notifications"):
+                    if provider.token:
+                        try:
+                            twitch_notifications = provider.get_notification_preferences(
+                                [stream["login"] for stream in streams]
+                            )
+                        except ProviderError:
+                            warning = (warning + " " if warning else "") + "Could not read Twitch notification preferences; unknown channels will stay quiet."
+                    else:
+                        warning = (warning + " " if warning else "") + "Twitch notification matching needs a readable browser session or session token; unknown channels will stay quiet."
                 if mode == "token" and not session:
                     raise ProviderError("No saved Twitch token; add one or select another mode")
                 if mode == "auto" and not session and not channels:
@@ -112,17 +136,17 @@ def poll(force=False):
             same_source = state.get("source") == source
             if cfg.get("notifications", True) and state.get("checked_at") and same_source:
                 previous = set(state.get("live_ids", []))
-                overrides = cfg.get("notification_overrides") or {}
                 for stream in streams:
                     key = stream["id"] or stream["login"]
-                    enabled = overrides.get(stream["login"], cfg.get("notify_all", True))
+                    enabled = notification_enabled(stream["login"], cfg, twitch_notifications)
                     if key not in previous and enabled:
                         _notify(stream)
             state = {
                 "streams": streams,
                 "follows": channels,
                 "source": source,
-                "warning": warning if mode != "helix" else "",
+                "warning": warning,
+                "twitch_notifications": twitch_notifications,
                 "live_ids": sorted(current_ids),
                 "checked_at": int(time.time()),
             }

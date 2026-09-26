@@ -10,6 +10,7 @@ DEFAULT_CONFIG = {
     "notifications": True,
     "poll_interval": 90,
     "notify_all": True,
+    "match_twitch_notifications": False,
     "notification_overrides": {},
     "client_id": "",
 }

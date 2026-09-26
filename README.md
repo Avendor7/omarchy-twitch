@@ -1,6 +1,6 @@
 # Omarchy Twitch Following
 
-A Quickshell bar widget for Omarchy that shows followed Twitch channels that are live. The panel shows each stream's title, category, viewer count and uptime. Click a row to open Twitch in your browser. It can notify you when a channel goes live.
+A Quickshell bar widget for Omarchy that shows followed Twitch channels that are live. The panel shows each stream's thumbnail, title, category, viewer count and uptime. Click a row to open Twitch in your browser. It can notify you when a channel goes live.
 
 The plugin works with a manual or exported channel list and **does not require a Twitch developer application** for those modes. Browser session sync is the default when a readable Twitch session is available. An optional Helix mode supports your own Twitch Client ID and OAuth user token.
 
@@ -88,7 +88,15 @@ This mode is for users who already have a Twitch developer application. Select *
 
 The helper polls every 90 seconds by default; the Settings tab offers 60, 90, 120, 180 and 300 seconds. Notifications are sent only when a channel changes from offline to live after a successful earlier poll. A failed request keeps the last successful state and does not create a false transition. Click a notification's **Open stream** action to open Twitch.
 
-Settings include a global notification switch, a default for all followed channels, and a per-channel Notify/Muted override. Data is stored in `~/.config/omarchy-twitch/` as private `config.json`, `follows.json` and `state.json` files. `state.json` contains the last stream list and live IDs, not credentials.
+Settings include a global notification switch, a default for all followed channels, and **Match Twitch**. Match Twitch is off until you enable it. With Browser auto or Session token mode and a readable Twitch session, the helper checks the notification setting of each live channel on every poll. Channels enabled on Twitch, including **Always** and **Personalized**, notify here when they first go live; **Off** channels stay quiet. The plugin sends its own notification when it detects a stream and cannot reproduce Twitch's personalized delivery timing or global delivery rules. This setting reads Twitch preferences and does not change them.
+
+Match Twitch uses Twitch's unofficial web GraphQL API because [Helix does not provide a channel notification preference endpoint](https://dev.twitch.tv/docs/api/reference/). Manual list, Export file, and Helix OAuth modes have no web session, so channels with an unknown Twitch preference stay quiet while matching is on. The same applies if preference lookup fails. A local per-channel choice can still enable notifications for one of those channels. The channel buttons cycle through **Local on → Local off → default**; in match mode, default uses Twitch's setting. Otherwise, default uses **All follows** or **Overrides only**. The global Notifications switch always takes priority. To enable matching from a terminal, run:
+
+```bash
+~/.config/omarchy/plugins/avendor7.twitch/bin/omarchy-twitch set match_twitch_notifications true
+```
+
+Data is stored in `~/.config/omarchy-twitch/` as private `config.json`, `follows.json` and `state.json` files. `state.json` contains the last stream list, live IDs, and the last read notification switches for live channels, not credentials.
 
 ## Update or remove
 

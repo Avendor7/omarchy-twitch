@@ -41,6 +41,7 @@ def normalize_stream(user, stream):
         "game": (stream.get("game") or {}).get("name", ""),
         "viewers": int(stream.get("viewersCount") or 0),
         "started_at": stream.get("createdAt", ""),
+        "thumbnail_url": stream.get("previewImageURL") or "",
         "url": "https://www.twitch.tv/" + user.get("login", ""),
     }
 
@@ -114,7 +115,7 @@ class TwitchGQLProvider:
     def get_live_streams(self, channels):
         query = """query TwitchLive($logins: [String!]!) {
           users(logins: $logins) { id login displayName
-            stream { id title viewersCount createdAt game { name } }
+            stream { id title viewersCount createdAt previewImageURL(width: 320, height: 180) game { name } }
           }
         }"""
         streams = []
@@ -122,6 +123,26 @@ class TwitchGQLProvider:
             users = self._query(query, {"logins": channels[index:index + 50]}).get("users") or []
             streams.extend(normalize_stream(user, user["stream"]) for user in users if user and user.get("stream"))
         return sorted(streams, key=lambda item: item["viewers"], reverse=True)
+
+    def get_notification_preferences(self, channels):
+        """Read the signed-in viewer's per-follow notification switch for live channels."""
+        if not self.token:
+            raise ProviderError("A Twitch session token is required to match notifications")
+        query = """query TwitchNotify($logins: [String!]!) {
+          users(logins: $logins) { login self { follower {
+            notificationSettings { isEnabled }
+          } } }
+        }"""
+        preferences = {}
+        for index in range(0, len(channels), 50):
+            users = self._query(query, {"logins": channels[index:index + 50]}).get("users") or []
+            for user in users:
+                if not user or not user.get("login"):
+                    continue
+                settings = (((user.get("self") or {}).get("follower") or {}).get("notificationSettings") or {})
+                if isinstance(settings.get("isEnabled"), bool):
+                    preferences[user["login"].lower()] = settings["isEnabled"]
+        return preferences
 
 
 class TwitchHelixProvider:
@@ -174,6 +195,7 @@ class TwitchHelixProvider:
                     "title": item.get("title", ""), "game": item.get("game_name", ""),
                     "viewers": int(item.get("viewer_count") or 0),
                     "started_at": item.get("started_at", ""),
+                    "thumbnail_url": (item.get("thumbnail_url") or "").replace("{width}", "320").replace("{height}", "180"),
                     "url": "https://www.twitch.tv/" + login,
                 })
         return sorted(streams, key=lambda item: item["viewers"], reverse=True)

@@ -19,7 +19,7 @@ def _set_config(key, value):
         if value not in MODES:
             raise ValueError("mode must be auto, manual, import, token, or helix")
         data[key] = value
-    elif key in ("notifications", "notify_all"):
+    elif key in ("notifications", "notify_all", "match_twitch_notifications"):
         if value not in ("true", "false"):
             raise ValueError("value must be true or false")
         data[key] = value == "true"
