@@ -111,11 +111,13 @@ Removing the plugin does not delete `~/.config/omarchy-twitch/` or the Secret Se
 
 ## Development
 
-The bar and panel are QML in `qml/`. The Python helper in `twitch_plugin/` has two provider implementations: `TwitchGQLProvider` for Twitch's web GraphQL endpoint and `TwitchHelixProvider` for the official API. Run the focused tests with:
+The bar and panel are QML in `qml/`. The Python helper in `twitch_plugin/` has two provider implementations: `TwitchGQLProvider` for Twitch's web GraphQL endpoint and `TwitchHelixProvider` for the official API. Run the standard-library tests with:
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+The tests use temporary config and browser databases and mock Twitch requests, so they do not need credentials or network access. GitLab and GitHub run this command on pushes; GitHub also runs it on pull requests.
 
 The web GraphQL API is unofficial and can change without notice. The exporter and browser-session sync depend on it. Manual and imported lists still need its public stream-status query, while Helix mode uses Twitch's documented endpoints. Reports of breakage should include the helper's error message and mode, never tokens or cookie files.
 

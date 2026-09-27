@@ -40,6 +40,17 @@ class MonitorTests(unittest.TestCase):
     def test_channel_input_is_strict_and_deduplicated(self):
         self.assertEqual(monitor.normalize_channels(["@Alpha", "alpha", "https://twitch.tv/Beta", "bad/path", "été"]), ["alpha", "beta"])
 
+    def test_cached_poll_skips_provider_and_keeps_saved_snapshot(self):
+        storage.write_json("state.json", {"checked_at": 100, "source": "saved channels",
+                                          "streams": [{"id": "1", "login": "alpha"}], "follows": ["alpha"]})
+        with patch.object(monitor.time, "time", return_value=110), \
+                patch.object(monitor, "TwitchGQLProvider") as provider:
+            snapshot = monitor.poll()
+        provider.assert_not_called()
+        self.assertEqual(snapshot["streams"], [{"id": "1", "login": "alpha"}])
+        self.assertEqual(snapshot["checked_at"], 100)
+        self.assertFalse(snapshot["stale"])
+
     def test_twitch_matching_respects_switch_and_local_overrides(self):
         cfg = {"notify_all": True, "match_twitch_notifications": True,
                "notification_overrides": {"beta": True, "gamma": False}}
