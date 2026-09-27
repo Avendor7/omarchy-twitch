@@ -5,6 +5,14 @@ from twitch_plugin.providers import ProviderError, TwitchGQLProvider, TwitchHeli
 
 
 class ProviderTests(unittest.TestCase):
+    def test_transient_graphql_service_error_is_retried_once(self):
+        provider = TwitchGQLProvider()
+        with patch("twitch_plugin.providers.request_json", side_effect=[
+            {"errors": [{"message": "service timeout"}]}, {"data": {"users": []}},
+        ]) as request:
+            self.assertEqual(provider._query("query Test { users { id } }"), {"users": []})
+        self.assertEqual(request.call_count, 2)
+
     def test_graphql_preview_url_is_kept_with_stream(self):
         stream = normalize_stream({"id": "1", "login": "alpha"}, {
             "title": "Live", "viewersCount": 5, "previewImageURL": "https://static-cdn.jtvnw.net/preview.jpg",
@@ -30,6 +38,19 @@ class ProviderTests(unittest.TestCase):
             self.assertEqual(provider.get_notification_preferences(["alpha", "beta", "other"]),
                              {"alpha": True, "beta": False})
         self.assertIn("notificationSettings", query.call_args.args[0])
+
+    def test_direct_live_follows_include_channels_outside_saved_page(self):
+        provider = TwitchGQLProvider("placeholder-token")
+        page = {"currentUser": {"followedLiveUsers": {
+            "edges": [{"cursor": "one", "node": {"id": "1", "login": "new_follow", "stream": {
+                "title": "Live", "viewersCount": 3, "previewImageURL": "https://cdn.example/preview.jpg",
+            }}}],
+            "pageInfo": {"hasNextPage": False},
+        }}}
+        with patch.object(provider, "_query", return_value=page):
+            streams = provider.get_live_followed_streams()
+        self.assertEqual([stream["login"] for stream in streams], ["new_follow"])
+        self.assertEqual(streams[0]["thumbnail_url"], "https://cdn.example/preview.jpg")
 
     def test_browser_pagination_warning_preserves_first_page(self):
         provider = TwitchGQLProvider("placeholder-token")

@@ -73,10 +73,14 @@ class TwitchGQLProvider:
         if self.token:
             headers["Authorization"] = "OAuth " + self.token
             headers["Client-Integrity"] = self._integrity_token()
-        result = request_json(GQL_URL, headers, {"query": query, "variables": variables or {}})
-        if result.get("errors"):
-            raise ProviderError("Twitch GraphQL: " + str(result["errors"][0].get("message", "unknown error")))
-        return result.get("data") or {}
+        for attempt in range(2):
+            result = request_json(GQL_URL, headers, {"query": query, "variables": variables or {}})
+            if result.get("errors"):
+                message = str(result["errors"][0].get("message", "unknown error"))
+                if attempt == 0 and message.lower() in ("service error", "service timeout"):
+                    continue
+                raise ProviderError("Twitch GraphQL: " + message)
+            return result.get("data") or {}
 
     def get_user(self):
         if not self.token:
@@ -99,7 +103,7 @@ class TwitchGQLProvider:
                 connection = ((self._query(query, {"login": user["login"], "after": after}).get("user") or {}).get("follows") or {})
             except ProviderError as error:
                 if channels and "integrity" in str(error).lower():
-                    self.warning = "Twitch blocked follow-list pagination; browser sync is partial. Import a full list or use Helix OAuth."
+                    self.warning = "Twitch blocked follow-list pagination; the saved follow list may be partial. Live follows are checked separately."
                     return channels
                 raise
             edges = connection.get("edges") or []
@@ -123,6 +127,35 @@ class TwitchGQLProvider:
             users = self._query(query, {"logins": channels[index:index + 50]}).get("users") or []
             streams.extend(normalize_stream(user, user["stream"]) for user in users if user and user.get("stream"))
         return sorted(streams, key=lambda item: item["viewers"], reverse=True)
+
+    def get_live_followed_streams(self):
+        """Fetch all live follows directly, without relying on follow-list pagination."""
+        if not self.token:
+            raise ProviderError("A Twitch session token is required for live follows")
+        query = """query TwitchFollowedLive($after: Cursor) {
+          currentUser { followedLiveUsers(first: 100, after: $after) {
+            edges { cursor node { id login displayName
+              stream { id title viewersCount createdAt previewImageURL(width: 320, height: 180) game { name } }
+            } }
+            pageInfo { hasNextPage }
+          } }
+        }"""
+        streams, after = [], None
+        for _ in range(100):
+            account = self._query(query, {"after": after}).get("currentUser") or {}
+            connection = account.get("followedLiveUsers")
+            if not isinstance(connection, dict):
+                raise ProviderError("Twitch did not return the signed-in live follows")
+            edges = connection.get("edges") or []
+            streams.extend(normalize_stream(node, node["stream"]) for edge in edges
+                           if (node := edge.get("node")) and node.get("stream"))
+            if not (connection.get("pageInfo") or {}).get("hasNextPage"):
+                return sorted(streams, key=lambda item: item["viewers"], reverse=True)
+            next_cursor = edges[-1].get("cursor") if edges else None
+            if not next_cursor or next_cursor == after:
+                raise ProviderError("Twitch live follows pagination stopped unexpectedly")
+            after = next_cursor
+        raise ProviderError("Twitch live follows pagination exceeded 10,000 channels")
 
     def get_notification_preferences(self, channels):
         """Read the signed-in viewer's per-follow notification switch for live channels."""

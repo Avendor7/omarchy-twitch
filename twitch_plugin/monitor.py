@@ -79,6 +79,7 @@ def poll(force=False):
         token_source = ""
         warning = ""
         twitch_notifications = {}
+        live_lookup = "channels"
         try:
             if mode == "helix":
                 provider = TwitchHelixProvider(cfg.get("client_id", ""), stored_token())
@@ -97,26 +98,32 @@ def poll(force=False):
                 if session:
                     provider = TwitchGQLProvider(session[0])
                     token_source = session[1]
+                    source = token_source
                     try:
                         channels = normalize_channels(provider.get_followed_channels())
                         warning = provider.warning
                         if warning:
                             channels = normalize_channels([*channels, *saved_follows])
-                        source = token_source
-                        write_json("follows.json", {"channels": channels})
                     except ProviderError:
-                        if mode != "auto" or not saved_follows:
-                            raise
-                        provider = TwitchGQLProvider()
                         channels = saved_follows
+                        warning = "Browser follow sync failed; showing the last saved list in Settings."
+                    try:
+                        streams = provider.get_live_followed_streams()
+                        live_lookup = "followed_live"
+                    except ProviderError:
+                        if not channels:
+                            raise
+                        streams = TwitchGQLProvider().get_live_streams(channels)
                         source = "saved channels"
-                        warning = "Browser follow sync failed; showing the last saved list."
+                        warning = (warning + " " if warning else "") + "Live-follow refresh failed; checking saved channels instead."
+                    channels = normalize_channels([*channels, *(stream["login"] for stream in streams)])
+                    write_json("follows.json", {"channels": channels})
                 else:
                     provider = TwitchGQLProvider()
                     channels = saved_follows
                     source = "saved channels" if channels else "none"
                     warning = ""
-                streams = provider.get_live_streams(channels)
+                    streams = provider.get_live_streams(channels)
                 if cfg.get("match_twitch_notifications"):
                     if provider.token:
                         try:
@@ -133,7 +140,7 @@ def poll(force=False):
                     raise ProviderError("No readable Twitch browser session; import or add channels")
 
             current_ids = {stream["id"] or stream["login"] for stream in streams}
-            same_source = state.get("source") == source
+            same_source = state.get("source") == source and state.get("live_lookup", "channels") == live_lookup
             if cfg.get("notifications", True) and state.get("checked_at") and same_source:
                 previous = set(state.get("live_ids", []))
                 for stream in streams:
@@ -145,6 +152,7 @@ def poll(force=False):
                 "streams": streams,
                 "follows": channels,
                 "source": source,
+                "live_lookup": live_lookup,
                 "warning": warning,
                 "twitch_notifications": twitch_notifications,
                 "live_ids": sorted(current_ids),

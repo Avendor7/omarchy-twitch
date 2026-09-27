@@ -12,6 +12,7 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
   property bool settingsPage: false
+  property bool forceQueued: false
   property var snapshot: ({ streams: [], follows: [], config: { poll_interval: 90 } })
   property string localError: ""
   readonly property var barIdentity: hostWidget || root
@@ -26,7 +27,10 @@ Panel {
   function toggle() { opened ? close() : open() }
 
   function refresh(force) {
-    if (pollProcess.running) return
+    if (pollProcess.running) {
+      if (force) forceQueued = true
+      return
+    }
     pollProcess.command = force ? [helper, "poll", "--force"] : [helper, "poll"]
     pollProcess.running = true
   }
@@ -78,6 +82,12 @@ Panel {
 
   Process {
     id: pollProcess
+    onExited: {
+      if (root.forceQueued) {
+        root.forceQueued = false
+        Qt.callLater(function() { root.refresh(true) })
+      }
+    }
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {

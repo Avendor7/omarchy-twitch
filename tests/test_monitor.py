@@ -62,12 +62,37 @@ class MonitorTests(unittest.TestCase):
                 patch.object(monitor, "_notify") as notify:
             provider.return_value.get_followed_channels.return_value = ["alpha", "beta"]
             provider.return_value.warning = ""
-            provider.return_value.get_live_streams.side_effect = [[], [alpha, beta]]
+            provider.return_value.get_live_followed_streams.side_effect = [[], [alpha, beta]]
             provider.return_value.get_notification_preferences.return_value = {"alpha": True, "beta": False}
             monitor.poll(force=True)
             snapshot = monitor.poll(force=True)
         self.assertEqual(snapshot["twitch_notifications"], {"alpha": True, "beta": False})
         self.assertEqual([call.args[0]["login"] for call in notify.call_args_list], ["alpha"])
+
+    def test_direct_live_follows_survive_follow_sync_failure(self):
+        storage.write_json("config.json", {**storage.DEFAULT_CONFIG, "mode": "auto"})
+        live = {"id": "3", "login": "outside_page", "display_name": "Outside", "game": "", "title": "", "url": "https://www.twitch.tv/outside_page"}
+        with patch.object(monitor, "find_twitch_token", return_value=("test-token", "browser")), \
+                patch.object(monitor, "TwitchGQLProvider") as provider:
+            provider.return_value.get_followed_channels.side_effect = monitor.ProviderError("service error")
+            provider.return_value.get_live_followed_streams.return_value = [live]
+            snapshot = monitor.poll(force=True)
+        self.assertFalse(snapshot["stale"])
+        self.assertEqual([stream["login"] for stream in snapshot["streams"]], ["outside_page"])
+        self.assertIn("outside_page", storage.follows())
+
+    def test_switch_to_direct_live_follows_sets_a_new_notification_baseline(self):
+        storage.write_json("config.json", {**storage.DEFAULT_CONFIG, "mode": "auto"})
+        storage.write_json("state.json", {"source": "browser", "checked_at": 1, "live_ids": ["1"]})
+        live = {"id": "2", "login": "outside_page", "display_name": "Outside", "game": "", "title": "", "url": "https://www.twitch.tv/outside_page"}
+        with patch.object(monitor, "find_twitch_token", return_value=("test-token", "browser")), \
+                patch.object(monitor, "TwitchGQLProvider") as provider, \
+                patch.object(monitor, "_notify") as notify:
+            provider.return_value.warning = ""
+            provider.return_value.get_followed_channels.return_value = ["alpha"]
+            provider.return_value.get_live_followed_streams.return_value = [live]
+            monitor.poll(force=True)
+        notify.assert_not_called()
 
 
 if __name__ == "__main__":

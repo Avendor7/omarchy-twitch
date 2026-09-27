@@ -38,7 +38,7 @@ Open the widget's **Settings** tab and choose one of these modes:
 
 Browser auto supports Firefox's cookie database and Chromium's Linux `v10`/`v11` AES-CBC cookie formats. Some newer browser profiles use a different encrypted format or have a locked keyring. In that case, choose the export or manual-list mode. Auto mode uses the last saved follow list if a browser session becomes unreadable.
 
-Twitch currently rejects some GraphQL follow-list pagination requests with an integrity error. If your account has more than 100 follows, browser auto may discover only the first page. The panel warns when this happens and keeps channels already in your saved list. The browser exporter can also stop with that error. For guaranteed full sync, use Helix OAuth; a manual list remains usable without a developer application.
+Twitch currently rejects some GraphQL follow-list pagination requests with an integrity error. If your account has more than 100 follows, browser auto may save only the first page of offline channels. The panel warns when this happens and keeps channels already in your saved list. Live channels are fetched through Twitch's separate signed-in live-follows query, so they can still appear even when the saved list is partial. The browser exporter can also stop with that error. For a complete saved follow list, use Helix OAuth; a manual list remains usable without a developer application.
 
 ### Add channels manually
 

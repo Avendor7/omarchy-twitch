@@ -17,7 +17,7 @@ BarWidget {
   }
 
   function refresh() {
-    if (panelLoader.item) panelLoader.item.refresh(false)
+    if (panelLoader.item) panelLoader.item.refresh(true)
   }
 
   function open() {
