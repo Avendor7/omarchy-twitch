@@ -17,10 +17,12 @@ The widget itself and manual/export modes use Python's standard library. It does
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/Avendor7/omarchy-twitch.git --enable
+omarchy plugin add https://gitlab.avendor.ca/stephen/omarchy-twitch.git --enable
 ```
 
 Omarchy places the widget on the right side of the bar by default. Click the purple dot and count to open the panel. Middle-click refreshes. The first successful poll establishes a baseline, so channels already live when you enable the plugin do not all generate notifications.
+
+The panel speeds up small touchpad scroll events in its lists. Regular mouse-wheel steps continue to scroll at a standard pace.
 
 If you cannot see a bar widget after enabling it, restart the shell with `omarchy restart shell`.
 

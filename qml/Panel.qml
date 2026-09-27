@@ -157,6 +157,24 @@ Panel {
         contentHeight: panelColumn.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
 
+        WheelHandler {
+          target: null
+          acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+          onWheel: function(event) {
+            var pixels = event.pixelDelta.y
+            var angle = event.angleDelta.y
+            var delta = pixels ? pixels * 3 : (Math.abs(angle) >= 120 ? angle / 2 : angle * 3)
+            var minY = scroll.originY
+            var maxY = minY + scroll.contentHeight - scroll.height
+            if (!delta || maxY <= minY) {
+              event.accepted = false
+              return
+            }
+            scroll.contentY = Math.max(minY, Math.min(maxY, scroll.contentY - delta))
+            event.accepted = true
+          }
+        }
+
         Column {
           id: panelColumn
           width: scroll.width
